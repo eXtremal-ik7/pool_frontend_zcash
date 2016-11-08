@@ -1,0 +1,25 @@
+pool_frontend_zcash {
+  isMaster = "true";
+  poolFee = "1";
+  poolFeeAddr = "t1ZsLopJKzyuaqmeC2Y6cx1351G13st2sWN";
+  walletAddrs = ["p2p://127.0.0.1:12201"];
+  localAddress = "p2p://127.0.0.1:13301";
+  walletAppName = "pool_rpc";
+  poolAppName = "pool_frontend_zcash";
+  requiredConfirmations = "10";
+  defaultMinimalPayout = "0.01";
+  dbPath = "/home/xpm/pool.zcash";
+  keepRoundTime = "3";
+  keepStatsTime = "2";
+  confirmationsCheckInterval = "7";
+  payoutInterval = "30";
+  balanceCheckInterval = "3";
+  statisticCheckInterval = "1";
+
+  zmqclientHost = "coinsforall.io";
+  zmqclientListenPort = "6668";
+  zmqclientWorkPort = "60200";
+
+  pool_zaddr = "zcWDMjkEyRPQAFjs5RWEzoqXG9BipLRWr4S9bC4A44g7eBv6ZhnqrWWc5M5MyNn4pt9vP2PEvK9NkUwerQbewEcEWz8ZL4f";
+  pool_taddr = "t1ZRsyK4pkBq7WD4gnF8r3nCYSQT19Zhh3C";
+}

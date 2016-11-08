@@ -1,0 +1,14 @@
+poolrestapi {
+  listenAddress = "cxxrestapi://127.0.0.1:19999";
+  coins = ["xpm", "zcash"];
+}
+
+xpm {
+  frontends = ["p2p://127.0.0.1:13300"];
+  poolAppName = "pool_frontend_xpm";
+}
+
+zcash {
+  frontends = ["p2p://127.0.0.1:13301"];
+  poolAppName = "pool_frontend_zcash";
+}

@@ -1,0 +1,43 @@
+worker_processes  4;
+
+events {
+    worker_connections  10240;
+    multi_accept        on;
+}
+
+
+http {
+    include       mime.types;
+    default_type  application/octet-stream;
+
+    sendfile        on;
+    tcp_nopush      on;
+    tcp_nodelay     on;
+
+    keepalive_timeout  65;
+    
+    upstream api_backend {
+        server     127.0.0.1:19999;
+        keepalive  32;
+    }
+
+    server {
+        listen       *:80 reuseport;
+        server_name  pool;
+
+        location / {
+            root   html;
+            index  index.html index.htm;
+            expires 5s;
+        }
+
+        location /api {
+            cxxrest_pass api_backend;
+        }
+
+        location ~* ^.+\.(jpg|jpeg|gif|png|ico)$ {
+          expires 3d; # 3 days
+        }
+    }
+
+}
