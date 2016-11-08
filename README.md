@@ -45,7 +45,7 @@ make -j5
 cd YOUR_BUILD_DIRECTORY/poolcore
 mkdir x86_64-Linux
 cd x86_64-Linux
-cmake ../src -DROOT_SOURCE_DIR=YOUR_BUILD_DIRECTORY -DZCASH_ENABLED
+cmake ../src -DROOT_SOURCE_DIR=YOUR_BUILD_DIRECTORY -DZCASH_ENABLED=1
 make -j5
 
 cd YOUR_BUILD_DIRECTORY/pool_frontend_zcash
