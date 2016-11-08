@@ -17,7 +17,7 @@ sudo apt-get install cmake libssl-dev libsodium-dev libpcre3-dev libleveldb-dev 
 cd YOUR_BUILD_DIRECTORY
 git clone https://github.com/zcash/zcash
 git clone https://github.com/google/flatbuffers
-git clone https://github.com/eXtremal-ik7/libp2p
+git clone https://github.com/eXtremal-ik7/libp2p -b version/0.3
 git clone https://github.com/eXtremal-ik7/poolcore
 git clone https://github.com/eXtremal-ik7/pool_frontend_zcash
 git clone https://github.com/eXtremal-ik7/poolrestapi
