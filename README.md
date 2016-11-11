@@ -9,13 +9,14 @@ This is ZCash mining pool.
 
 ###### Install dependencies
 
-sudo apt-get install cmake libssl-dev libsodium-dev libpcre3-dev libleveldb-dev libboost-all-dev libgmp-dev libprotobuf-dev protobuf-compiler
+sudo apt-get install cmake libssl-dev libsodium-dev libpcre3-dev libleveldb-dev libboost-all-dev libgmp-dev libprotobuf-dev protobuf-compiler libjansson-dev
 
 ###### Download sources
 
 ```
 cd YOUR_BUILD_DIRECTORY
 git clone https://github.com/zcash/zcash
+git clone https://github.com/config4star/config4cpp
 git clone https://github.com/google/flatbuffers
 git clone https://github.com/eXtremal-ik7/libp2p -b version/0.3
 git clone https://github.com/eXtremal-ik7/poolcore
@@ -29,6 +30,9 @@ tar -xzf nginx-1.11.5.tar.gz
 
 ###### Build pool sources
 ```
+cd YOUR_BUILD_DIRECTORY/config4cpp
+make -j5
+
 cd YOUR_BUILD_DIRECTORY/flatbuffers
 mkdir build
 cd build
