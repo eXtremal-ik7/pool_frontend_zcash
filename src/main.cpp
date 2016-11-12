@@ -99,13 +99,11 @@ void sendSignal(poolContext *ctx, const void *data, size_t size)
   }
 }
 
-void updateStratumWorkers(poolContext *ctx)
+void *updateStratumWorkers(void *arg)
 {
-  for (auto &w: ctx->stratumWorkers) {
-    // repeat one time
-    if (!stratumSendNewWork(ctx, w.second.socket))
-      stratumSendNewWork(ctx, w.second.socket);
-  }
+  poolContext *ctx = (poolContext*)arg;  
+  for (auto &w: ctx->stratumWorkers)
+    stratumSendNewWork(ctx, w.second.socket);
 }
 
 
@@ -483,7 +481,7 @@ void signalHandler(p2pPeer *peer, void *buffer, size_t size, void *arg)
       size_t size = sig.ByteSize();
       sig.SerializeToArray(stream.alloc(size), size);
       sendSignal(context, stream.data(), stream.offsetOf());      
-      updateStratumWorkers(context);
+      coroutineCall(coroutineNew(updateStratumWorkers, context, 0x10000));
     }
   }
 }
