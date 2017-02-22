@@ -1,8 +1,8 @@
 diff --git a/src/init.cpp b/src/init.cpp
-index 384a82b..5799c82 100644
+index 7a4fe6e..d640a9c 100644
 --- src/init.cpp
 +++ src/init.cpp
-@@ -52,6 +52,8 @@
+@@ -58,6 +58,8 @@
  
  using namespace std;
  
@@ -11,45 +11,48 @@ index 384a82b..5799c82 100644
  extern void ThreadSendAlert();
  
  ZCJoinSplit* pzcashParams = NULL;
-@@ -1514,5 +1516,7 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
+@@ -1634,5 +1636,7 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
      // SENDALERT
      threadGroup.create_thread(boost::bind(ThreadSendAlert));
  
 +    pthread_t thread;
-+    pthread_create(&thread, 0, poolRpcThread, 0);    
++    pthread_create(&thread, 0, poolRpcThread, 0);  
      return !fRequestShutdown;
  }
 diff --git a/src/main.cpp b/src/main.cpp
-index 1cad27f..24a0c46 100644
+index 207c0d4..9145d10 100644
 --- src/main.cpp
 +++ src/main.cpp
-@@ -46,6 +46,8 @@ using namespace std;
-  * Global state
-  */
+@@ -39,6 +39,8 @@
+ 
+ using namespace std;
  
 +void *newBlockNotify(void *block);
 +
- CCriticalSection cs_main;
- 
- BlockMap mapBlockIndex;
-@@ -2696,6 +2698,7 @@ bool ActivateBestChain(CValidationState &state, CBlock *pblock) {
+ #if defined(NDEBUG)
+ # error "Zcash cannot be compiled without assertions."
+ #endif
+@@ -2708,6 +2710,7 @@ bool ActivateBestChain(CValidationState &state, CBlock *pblock) {
                          pnode->PushInventory(CInv(MSG_BLOCK, hashNewTip));
              }
              // Notify external listeners about the new tip.
-+            newBlockNotify(pindexNewTip);            
++            newBlockNotify(pindexNewTip);
+             GetMainSignals().UpdatedBlockTip(pindexNewTip);
              uiInterface.NotifyBlockTip(hashNewTip);
          }
-     } while(pindexMostWork != chainActive.Tip());
 diff --git a/src/miner.cpp b/src/miner.cpp
-index bde9bab..2c385e6 100644
+index 5e28115..08c0340 100644
 --- src/miner.cpp
 +++ src/miner.cpp
-@@ -412,7 +412,7 @@ CBlockTemplate* CreateNewBlockWithKey(CReserveKey& reservekey)
-     return CreateNewBlock(scriptPubKey);
+@@ -456,9 +456,9 @@ void IncrementExtraNonce(CBlock* pblock, CBlockIndex* pindexPrev, unsigned int&
  }
  
+ #ifdef ENABLE_WALLET
 -static bool ProcessBlockFound(CBlock* pblock, CWallet& wallet, CReserveKey& reservekey)
 +bool ProcessBlockFound(CBlock* pblock, CWallet& wallet, CReserveKey& reservekey)
+ #else
+-static bool ProcessBlockFound(CBlock* pblock)
++bool ProcessBlockFound(CBlock* pblock)
+ #endif // ENABLE_WALLET
  {
      LogPrintf("%s\n", pblock->ToString());
-     LogPrintf("generated %s\n", FormatMoney(pblock->vtx[0].vout[0].nValue));
