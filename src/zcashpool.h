@@ -40,10 +40,12 @@ public:
   std::string wallet;
   std::string worker;
   aioObject *socket;
+  time_t lastUpdateTime;
   
   StratumWorker() {
     begin = time(0)+AccumulateInterval;
     memset(values, 0, sizeof(values));
+    lastUpdateTime = 0;
   }  
   
   void pushShare() {
@@ -83,15 +85,19 @@ struct poolContext {
   std::set<uint256> uniqueShares;
   double difficulty;
   uint256 blockTarget;
+  
+  unsigned shareTargetCoeff;
   uint256 shareTarget;
   mpz_class shareTargetMpz;
   uint32_t shareTargetBits;
   std::string shareTargetForStratum;
+  
   bool equihashShareCheck;
   
   // stratum
   bool checkAddress;
   int64_t sessionId;
+  unsigned stratumWorkLifeTime;
   
   // must be in thread context
   std::vector<aioObject*> signalSockets;
@@ -139,5 +145,5 @@ void onStratumAuthorize(poolContext *context, aioObject *socket, StratumMessage 
 void onStratumSubmit(poolContext *context, aioObject *socket, StratumMessage *msg, int64_t sessionId);
 
 void stratumSendSetTarget(poolContext *context, aioObject *socket);
-bool stratumSendNewWork(poolContext *context, aioObject *socket);
+bool stratumSendNewWork(poolContext *context, aioObject *socket, int64_t sessionId);
 void stratumSendStats(poolContext *context, StratumWorker &worker);

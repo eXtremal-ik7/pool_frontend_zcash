@@ -492,7 +492,7 @@ void onStratumSubmit(poolContext *context, aioObject *socket, StratumMessage *ms
   if (value > 0) {
     context->stratumWorkers[sessionId].pushShare();
   } else {
-    stratumSendNewWork(context, socket);
+    stratumSendNewWork(context, socket, sessionId);
   }
 }
 
@@ -508,7 +508,7 @@ void stratumSendSetTarget(poolContext *context, aioObject *socket)
   aioWrite(context->base, socket, message, strlen(message), afWaitAll, 0, 0, 0);
 }
 
-bool stratumSendNewWork(poolContext *context, aioObject *socket)
+bool stratumSendNewWork(poolContext *context, aioObject *socket, int64_t sessionId)
 {
   //{"id": null, "method": "mining.notify", "params": ["JOB_ID", "VERSION", "PREVHASH", "MERKLEROOT", "RESERVED", "TIME", "BITS", CLEAN_JOBS]} \n
   
@@ -547,14 +547,14 @@ bool stratumSendNewWork(poolContext *context, aioObject *socket)
   task.merkle = block->merkle;
   task.bits = block->bits;
   context->stratumTaskMap[block->extraNonce] = task;
+  context->stratumWorkers[sessionId].lastUpdateTime = time(0);
   return true;
 }
 
 
 void stratumSendStats(poolContext *context, StratumWorker &worker)
 {
-  // TODO: don't use constant 512.0
-  double solsPerSec = worker.updateStats() * 512.0;
+  double solsPerSec = worker.updateStats() * context->shareTargetCoeff;
   
   flatbuffers::FlatBufferBuilder fbb;
   auto statsOffset = CreateStats(fbb,

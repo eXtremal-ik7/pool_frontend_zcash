@@ -106,9 +106,8 @@ void *updateStratumWorkers(void *arg)
 {
   poolContext *ctx = (poolContext*)arg;  
   for (auto &w: ctx->stratumWorkers)
-    stratumSendNewWork(ctx, w.second.socket);
+    stratumSendNewWork(ctx, w.second.socket, w.first);
 }
-
 
 void *frontendProc(void *arg)
 {
@@ -247,7 +246,7 @@ void *stratumProc(void *arg)
             
             // send target and work
             stratumSendSetTarget(poolCtx, socket);
-            stratumSendNewWork(poolCtx, socket);
+            stratumSendNewWork(poolCtx, socket, sessionId);
             break;
           case StratumMethodTy::ExtraNonceSubscribe :
             // nothing to do
@@ -369,6 +368,13 @@ void *timerProc(void *arg)
     }
     
     connectedBefore = ctx->client->connected();
+    
+    // update work for stratum miners if needed
+    time_t tm = time(0);
+    for (auto &w: ctx->stratumWorkers) {
+      if (tm - w.second.lastUpdateTime >= ctx->stratumWorkLifeTime)
+        stratumSendNewWork(ctx, w.second.socket, w.first);
+    }
   }
 }
 
@@ -604,13 +610,14 @@ int main(int argc, char **argv)
     context.xpmclientHost = cfg->lookupString("pool_frontend_zcash", "zmqclientHost");
     context.xpmclientListenPort = cfg->lookupInt("pool_frontend_zcash", "zmqclientListenPort");
     context.xpmclientWorkPort = cfg->lookupInt("pool_frontend_zcash", "zmqclientWorkPort");
+    context.stratumWorkLifeTime = cfg->lookupInt("pool_frontend_zcash", "stratumWorkLifeTime", 9) * 60;
     stratumPort = cfg->lookupInt("pool_frontend_zcash", "stratumPort", 3357);
     
     // calculate share target
-    unsigned shareTarget = cfg->lookupInt("pool_frontend_zcash", "shareTarget", 1024);    
+    context.shareTargetCoeff = cfg->lookupInt("pool_frontend_zcash", "shareTarget", 1024);    
     mpz_class N = 1;
     N <<= 256;
-    N /= shareTarget;
+    N /= context.shareTargetCoeff;
     mpz_to_uint256(N.get_mpz_t(), context.shareTarget);
     context.shareTargetBits = context.shareTarget.GetCompact(false);
     context.shareTargetMpz = N;
