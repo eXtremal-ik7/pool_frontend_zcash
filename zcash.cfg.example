@@ -8,6 +8,7 @@ pool_frontend_zcash {
   poolAppName = "pool_frontend_zcash";
   requiredConfirmations = "10";
   defaultMinimalPayout = "0.01";
+  minimalPayout = "0.001";
   dbPath = "/home/xpm/pool.zcash";
   keepRoundTime = "3";
   keepStatsTime = "2";
@@ -15,7 +16,11 @@ pool_frontend_zcash {
   payoutInterval = "30";
   balanceCheckInterval = "3";
   statisticCheckInterval = "1";
-
+  checkAddress = "true";
+  shareTarget = "2048";
+  equihashShareCheck = "true";
+  stratumWorkLifeTime = "9";
+  
   zmqclientHost = "coinsforall.io";
   zmqclientListenPort = "6668";
   zmqclientWorkPort = "60200";

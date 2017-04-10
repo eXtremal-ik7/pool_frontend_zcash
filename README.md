@@ -116,6 +116,7 @@ pool_frontend_zcash {
   poolAppName = "pool_frontend_zcash";
   requiredConfirmations = "10";
   defaultMinimalPayout = "0.01";
+  minimalPayout = "0.001";
   dbPath = "/home/xpm/pool.zcash";
   keepRoundTime = "3";
   keepStatsTime = "2";
@@ -123,6 +124,10 @@ pool_frontend_zcash {
   payoutInterval = "30";
   balanceCheckInterval = "3";
   statisticCheckInterval = "1";
+  checkAddress = "true";
+  shareTarget = "2048";
+  equihashShareCheck = "true";
+  stratumWorkLifeTime = "9";
 
   zmqclientHost = "coinsforall.io";
   zmqclientListenPort = "6668";
@@ -142,6 +147,7 @@ pool_frontend_zcash {
 * poolAppName - alltimes "pool_frontend_zcash"
 * requiredConfirmations - minimal confirmations for block before payout (pool can't make payout for orphans)
 * defaultMinimalPayout - default minimal payout for new accounts
+* minimalPayout - minimal allowed payout in one transaction
 * dbPath - path for pool database, must be exists
 * keepRoundTime - how much days pool keep shares
 * keepStatsTime - statistic (performance, number of GPUs, temperatures) keep time in minutes
@@ -149,6 +155,10 @@ pool_frontend_zcash {
 * payoutInterval - payout interval in minutes
 * balanceCheckInterval - balance check interval in minutes
 * statisticCheckInterval - statistic check interval in minutes (should be 1)
+* checkAddress - enable client address checking. Use 'false' when you setup pool on testnet
+* shareTarget - fixed share difficulty for native(zeromq) and stratum miners
+* equihashShareCheck - enable additional equihash share checking, not need on private pools. Disable it for less CPU usage
+* stratumWorkLifeTime - stratum work update interval in minutes, required for some miners
 
 * zmqclientHost - native zeromq protocol host name
 * zmqclientListenPort - navite protocol port
