@@ -529,6 +529,7 @@ int main(int argc, char **argv)
   PoolBackend::config backendConfig;
   poolContext context;
   bool checkAddress;
+  unsigned stratumPort;
   config4cpp::Configuration *cfg = config4cpp::Configuration::create();
   
   try {
@@ -603,6 +604,7 @@ int main(int argc, char **argv)
     context.xpmclientHost = cfg->lookupString("pool_frontend_zcash", "zmqclientHost");
     context.xpmclientListenPort = cfg->lookupInt("pool_frontend_zcash", "zmqclientListenPort");
     context.xpmclientWorkPort = cfg->lookupInt("pool_frontend_zcash", "zmqclientWorkPort");
+    stratumPort = cfg->lookupInt("pool_frontend_zcash", "stratumPort", 3357);
     
     // calculate share target
     unsigned shareTarget = cfg->lookupInt("pool_frontend_zcash", "shareTarget", 1024);    
@@ -614,6 +616,8 @@ int main(int argc, char **argv)
     context.shareTargetMpz = N;
     context.shareTargetForStratum = context.shareTarget.ToString();
     fprintf(stderr, "<info> share target for stratum is %s\n", context.shareTargetForStratum.c_str());
+    
+    context.equihashShareCheck = cfg->lookupBoolean("pool_frontend_zcash", "equihashShareCheck", true);
   } catch(const config4cpp::ConfigurationException& ex){
     fprintf(stderr, "<error> %s\n", ex.c_str());
     exit(1);
@@ -635,7 +639,7 @@ int main(int argc, char **argv)
   // Stratum protocol
   context.checkAddress = checkAddress;
   context.sessionId = 0;
-  createListener(base, 3357, stratumProc, 0, &context);
+  createListener(base, stratumPort, stratumProc, 0, &context);
   coroutineCall(coroutineNew(stratumStatsProc, &context, 0x10000));     
   
   context.client =

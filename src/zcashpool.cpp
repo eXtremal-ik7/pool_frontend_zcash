@@ -180,7 +180,7 @@ void onShare(poolContext *context, pool::proto::Request &req, pool::proto::Reply
     }
     
     // warning: need a huge CPU power for share check
-    if (true) {
+    if (context->equihashShareCheck) {
       if (!equiHashShareCheck(&header, (const uint8_t*)share.proofofwork().data(), share.proofofwork().size())) {
         fprintf(stderr, "<info> invalid share(equi), do a penalty\n");      
         rep.set_error(pool::proto::Reply::INVALID);
@@ -357,9 +357,11 @@ int64_t stratumCheckShare(poolContext *context,
   SHA256_Update(&ctx, hash1, sizeof(hash1));
   SHA256_Final(shareHeaderHash->begin(), &ctx);
   
-  if (!equiHashShareCheck(&header, equihashSolution, equihashSolutionSize)) {
-    *error = "\"Invalid share(equi)\"";
-    return -1;
+  if (context->equihashShareCheck) {
+    if (!equiHashShareCheck(&header, equihashSolution, equihashSolutionSize)) {
+      *error = "\"Invalid share(equi)\"";
+      return -1;
+    }
   }
 
   if (*shareHeaderHash > context->shareTarget) {

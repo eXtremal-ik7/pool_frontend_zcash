@@ -82,15 +82,12 @@ struct poolContext {
   std::map<int64_t, StratumTask> stratumTaskMap;
   std::set<uint256> uniqueShares;
   double difficulty;
-//   mpz_class blockTarget;
   uint256 blockTarget;
-  
-//   mpz_class shareTarget;
   uint256 shareTarget;
   mpz_class shareTargetMpz;
   uint32_t shareTargetBits;
   std::string shareTargetForStratum;
-  
+  bool equihashShareCheck;
   
   // stratum
   bool checkAddress;
