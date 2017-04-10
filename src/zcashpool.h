@@ -82,10 +82,18 @@ struct poolContext {
   std::map<int64_t, StratumTask> stratumTaskMap;
   std::set<uint256> uniqueShares;
   double difficulty;
-  mpz_class blockTarget;
-  mpz_class shareTarget;
+//   mpz_class blockTarget;
+  uint256 blockTarget;
+  
+//   mpz_class shareTarget;
+  uint256 shareTarget;
+  mpz_class shareTargetMpz;
+  uint32_t shareTargetBits;
+  std::string shareTargetForStratum;
+  
   
   // stratum
+  bool checkAddress;
   int64_t sessionId;
   
   // must be in thread context

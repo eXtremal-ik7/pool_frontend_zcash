@@ -19,8 +19,6 @@
 
 #define TM 5000000
 
-#define STATIC_DIFF 0x20008000
-
 static poolContext *gPoolContext;
 
 struct listenerContext {
@@ -30,11 +28,16 @@ struct listenerContext {
   void *arg;
 };
 
-inline void mpz_set_uint256(mpz_t r, uint256& u)
+inline void mpz_from_uint256(mpz_t r, uint256& u)
 {
   mpz_import(r, 32 / sizeof(unsigned long), -1, sizeof(unsigned long), -1, 0, &u);
 }
 
+inline void mpz_to_uint256(mpz_t r, uint256 &u)
+{
+  memset(&u, 0, sizeof(uint256));
+  mpz_export(&u, 0, -1, 4, 0, 0, r);    
+}
 
 static double difficultyFromBits(int64_t nBits)
 {
@@ -67,7 +70,7 @@ static mpz_class hashTargetFromBits(unsigned nBits)
     hashTarget >>= 8*(3-exponent);
   else
     hashTarget <<= 8*(exponent-3);
-  mpz_set_uint256(target.get_mpz_t(), hashTarget);
+  mpz_from_uint256(target.get_mpz_t(), hashTarget);
   return target;
 }
 
@@ -320,29 +323,30 @@ void *timerProc(void *arg)
         if (!receivedBlock)
           continue;
         ctx->difficulty = difficultyFromBits(receivedBlock->bits);      
-        ctx->shareTarget = hashTargetFromBits(receivedBlock->bits);
         ctx->extraNonceMap.clear();
         ctx->mCurrBlock.set_height(receivedBlock->height);
         ctx->mCurrBlock.set_hash(receivedBlock->hash.c_str());
         ctx->mCurrBlock.set_prevhash(receivedBlock->prevhash.c_str());
-        ctx->mCurrBlock.set_reqdiff(STATIC_DIFF);
+        ctx->mCurrBlock.set_reqdiff(ctx->shareTargetBits);
         ctx->mCurrBlock.set_minshare(0);
-        ctx->shareTarget = hashTargetFromBits(STATIC_DIFF);
 
         ctx->uniqueShares.clear();      
         ctx->stratumTaskMap.clear();
         
-        ctx->blockTarget = receivedBlock->bits & 0x007FFFFF;
+        mpz_class blockTarget = receivedBlock->bits & 0x007FFFFF;
         unsigned exponent = receivedBlock->bits >> 24;
         if (exponent <= 3)
-          ctx->blockTarget >>= 8*(3-exponent);
+          blockTarget >>= 8*(3-exponent);
         else
-          ctx->blockTarget <<= 8*(exponent-3);        
+          blockTarget <<= 8*(exponent-3);        
+        mpz_to_uint256(blockTarget.get_mpz_t(), ctx->blockTarget);
         
+        mpz_class sharesPerBlock = ctx->shareTargetMpz / blockTarget;
         fprintf(stderr,
-                " * new block: %u, diff=%.5lf\n",
+                " * new block: %u, diff=%.5lf, approximate shares per block: %lu\n",
                 (unsigned)receivedBlock->height,
-                ctx->difficulty);     
+                ctx->difficulty,
+                std::max(sharesPerBlock.get_ui(), 1ul));            
       
         pool::proto::Signal sig;
         pool::proto::Block* block = sig.mutable_block();
@@ -447,28 +451,27 @@ void signalHandler(p2pPeer *peer, void *buffer, size_t size, void *arg)
       context->mCurrBlock.set_height(receivedBlock->height());
       context->mCurrBlock.set_hash(receivedBlock->hash()->c_str());
       context->mCurrBlock.set_prevhash(receivedBlock->prevhash()->c_str());
-      context->mCurrBlock.set_reqdiff(STATIC_DIFF);
+      context->mCurrBlock.set_reqdiff(context->shareTargetBits);
       context->mCurrBlock.set_minshare(0);
-      context->shareTarget = hashTargetFromBits(STATIC_DIFF);      
       
       context->uniqueShares.clear();
       context->stratumTaskMap.clear();
       
-      context->blockTarget = receivedBlock->bits() & 0x007FFFFF;
+      mpz_class blockTarget = receivedBlock->bits() & 0x007FFFFF;
       unsigned exponent = receivedBlock->bits() >> 24;
       if (exponent <= 3)
-        context->blockTarget >>= 8*(3-exponent);
+        blockTarget >>= 8*(3-exponent);
       else
-        context->blockTarget <<= 8*(exponent-3);
+        blockTarget <<= 8*(exponent-3);        
+      mpz_to_uint256(blockTarget.get_mpz_t(), context->blockTarget);
       
-      mpz_class sharesPerBlock = context->shareTarget;
-      sharesPerBlock /= context->blockTarget;
+      mpz_class sharesPerBlock = context->shareTargetMpz / blockTarget;
       
       fprintf(stderr,
               " * new block signal: %u, diff=%.5lf, approximate shares per block: %lu\n",
               (unsigned)receivedBlock->height(),
               context->difficulty,
-              sharesPerBlock.get_ui());     
+              std::max(sharesPerBlock.get_ui(), 1ul));     
       
       pool::proto::Signal sig;
       pool::proto::Block* block = sig.mutable_block();
@@ -525,6 +528,7 @@ int main(int argc, char **argv)
   
   PoolBackend::config backendConfig;
   poolContext context;
+  bool checkAddress;
   config4cpp::Configuration *cfg = config4cpp::Configuration::create();
   
   try {
@@ -576,10 +580,13 @@ int main(int argc, char **argv)
       backendConfig.listenAddress = address;
     }
     
+    checkAddress = cfg->lookupBoolean("pool_frontend_zcash", "checkAddress", true);
+   
     backendConfig.walletAppName = cfg->lookupString("pool_frontend_zcash", "walletAppName", "pool_rpc");
     backendConfig.poolAppName = cfg->lookupString("pool_frontend_zcash", "poolAppName", "pool_frontend_zcash");    
     backendConfig.requiredConfirmations = cfg->lookupInt("pool_frontend_zcash", "requiredConfirmations", 10);
     backendConfig.defaultMinimalPayout = (int64_t)(cfg->lookupFloat("pool_frontend_zcash", "defaultMinimalPayout", 4)*COIN);
+    backendConfig.minimalPayout = (int64_t)(cfg->lookupFloat("pool_frontend_zcash", "minimalPayout", 0.001)*COIN);
     backendConfig.dbPath = cfg->lookupString("pool_frontend_zcash", "dbPath");
     backendConfig.keepRoundTime = cfg->lookupInt("pool_frontend_zcash", "keepRoundTime", 3) * 24*3600;
     backendConfig.keepStatsTime = cfg->lookupInt("pool_frontend_zcash", "keepStatsTime", 2) * 60;
@@ -588,6 +595,7 @@ int main(int argc, char **argv)
     backendConfig.balanceCheckInterval = cfg->lookupInt("pool_frontend_zcash", "balanceCheckInterval", 3) * 60 * 1000000;
     backendConfig.statisticCheckInterval = cfg->lookupInt("pool_frontend_zcash", "statisticCheckInterval", 1) * 60 * 1000000;
     
+    backendConfig.checkAddress = checkAddress;
     backendConfig.useAsyncPayout = true;
     backendConfig.poolZAddr = cfg->lookupString("pool_frontend_zcash", "pool_zaddr");
     backendConfig.poolTAddr = cfg->lookupString("pool_frontend_zcash", "pool_taddr");
@@ -595,6 +603,17 @@ int main(int argc, char **argv)
     context.xpmclientHost = cfg->lookupString("pool_frontend_zcash", "zmqclientHost");
     context.xpmclientListenPort = cfg->lookupInt("pool_frontend_zcash", "zmqclientListenPort");
     context.xpmclientWorkPort = cfg->lookupInt("pool_frontend_zcash", "zmqclientWorkPort");
+    
+    // calculate share target
+    unsigned shareTarget = cfg->lookupInt("pool_frontend_zcash", "shareTarget", 1024);    
+    mpz_class N = 1;
+    N <<= 256;
+    N /= shareTarget;
+    mpz_to_uint256(N.get_mpz_t(), context.shareTarget);
+    context.shareTargetBits = context.shareTarget.GetCompact(false);
+    context.shareTargetMpz = N;
+    context.shareTargetForStratum = context.shareTarget.ToString();
+    fprintf(stderr, "<info> share target for stratum is %s\n", context.shareTargetForStratum.c_str());
   } catch(const config4cpp::ConfigurationException& ex){
     fprintf(stderr, "<error> %s\n", ex.c_str());
     exit(1);
@@ -614,6 +633,7 @@ int main(int argc, char **argv)
   createListener(base, context.xpmclientWorkPort+1, signalsProc, 0, &context);    
   
   // Stratum protocol
+  context.checkAddress = checkAddress;
   context.sessionId = 0;
   createListener(base, 3357, stratumProc, 0, &context);
   coroutineCall(coroutineNew(stratumStatsProc, &context, 0x10000));     

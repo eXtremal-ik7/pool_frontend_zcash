@@ -6,15 +6,8 @@
 #include "equihash_original.h"
 #include <openssl/sha.h>
 
-
 #include "block.h"
 #include <stdio.h>
-
-
-inline void mpz_set_uint256(mpz_t r, uint256& u)
-{
-    mpz_import(r, 32 / sizeof(unsigned long), -1, sizeof(unsigned long), -1, 0, &u);
-}
 
 unsigned writeCompactSize(size_t size, uint8_t *out)
 {
@@ -187,26 +180,22 @@ void onShare(poolContext *context, pool::proto::Request &req, pool::proto::Reply
     }
     
     // warning: need a huge CPU power for share check
-//     if (false) {
+    if (true) {
       if (!equiHashShareCheck(&header, (const uint8_t*)share.proofofwork().data(), share.proofofwork().size())) {
         fprintf(stderr, "<info> invalid share(equi), do a penalty\n");      
         rep.set_error(pool::proto::Reply::INVALID);
       }
-//     }    
+    }    
   }
-  
-  mpz_set_uint256(mpzHash.get_mpz_t(), shareHeaderHash);
-  if (mpzHash > context->shareTarget) {
+
+  if (shareHeaderHash > context->shareTarget) {
     fprintf(stderr, "<info> too small share\n");
     rep.set_error(pool::proto::Reply::INVALID);
     return;
   }
   
-  mpzValue = context->shareTarget;
-  mpzValue /= mpzHash;
-  value = log(mpzValue.get_d()) / log(1.0625);
-  if (!value && mpzValue > 0)
-    value = 1;
+  // for static diff all shares have same weight
+  value = 1;
 
   // check duplicate
   if (!context->uniqueShares.insert(shareHeaderHash).second) {
@@ -372,18 +361,14 @@ int64_t stratumCheckShare(poolContext *context,
     *error = "\"Invalid share(equi)\"";
     return -1;
   }
-  
-  mpz_set_uint256(mpzHash.get_mpz_t(), *shareHeaderHash);
-  if (mpzHash > context->shareTarget) {
+
+  if (*shareHeaderHash > context->shareTarget) {
     *error = "\"Too small share\"";    
     return -1;
   }
   
-  mpzValue = context->shareTarget;
-  mpzValue /= mpzHash;
-  value = log(mpzValue.get_d()) / log(1.0625);
-  if (!value && mpzValue > 0)
-    value = 1;
+  // for static diff all shares have same weight
+  value = 1;
   
   // check duplicate
   if (!context->uniqueShares.insert(*shareHeaderHash).second) {
@@ -391,7 +376,7 @@ int64_t stratumCheckShare(poolContext *context,
     return -1;
   }
 
-  if (mpzHash <= context->blockTarget) {
+  if (*shareHeaderHash <= context->blockTarget) {
     fprintf(stderr, "<info> (stratum) found block %s\n", shareHeaderHash->ToString().c_str());
     std::string proofofwork((const char*)equihashSolution, equihashSolutionSize);
     auto result = ioSendProofOfWork(context->client,
@@ -436,7 +421,7 @@ void onStratumAuthorize(poolContext *context, aioObject *socket, StratumMessage 
   const char *workerName;
   if (splitStratumWorkerName((char*)msg->authorize.login.data(), &wallet, &workerName)) {
     CBitcoinAddress address(wallet);
-    if (address.IsValidForZCash()) {
+    if (!context->checkAddress || address.IsValidForZCash()) {
       authorized = "true";
     } else {
       authorized = "false";
@@ -516,7 +501,7 @@ void stratumSendSetTarget(poolContext *context, aioObject *socket)
   // 0080000000000000000000000000000000000000000000000000000000000000
   snprintf(message, sizeof(message),
            "{\"id\": null, \"method\": \"mining.set_target\", \"params\": [\"%s\"]}\n",
-           "0080000000000000000000000000000000000000000000000000000000000000");  
+           context->shareTargetForStratum.c_str());  
   
   aioWrite(context->base, socket, message, strlen(message), afWaitAll, 0, 0, 0);
 }
