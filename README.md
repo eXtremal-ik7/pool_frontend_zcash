@@ -70,7 +70,7 @@ make -j5
 make install
 ```
 
-###### Setup ZCash daemon (version 1.0.6 or higher required)
+###### Setup ZCash daemon (version 1.0.12 or higher required)
 
 You can find setup instructions on ZCash github page: https://github.com/zcash/zcash/wiki/1.0-User-Guide
 
