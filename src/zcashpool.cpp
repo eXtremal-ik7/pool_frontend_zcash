@@ -1,7 +1,7 @@
 #include "zcashpool.h"
+#include "address.h"
 #include "poolcommon/poolapi.h"
 #include "poolcore/backend.h"
-#include "poolcore/base58.h"
 #include "p2p/p2p.h"
 #include "equihash_original.h"
 #include <openssl/sha.h>
@@ -422,8 +422,8 @@ void onStratumAuthorize(poolContext *context, aioObject *socket, StratumMessage 
   const char *wallet;
   const char *workerName;
   if (splitStratumWorkerName((char*)msg->authorize.login.data(), &wallet, &workerName)) {
-    CBitcoinAddress address(wallet);
-    if (!context->checkAddress || address.IsValidForZCash()) {
+    CZECAddress address(wallet);
+    if (!context->checkAddress || address.isValid()) {
       authorized = "true";
     } else {
       authorized = "false";

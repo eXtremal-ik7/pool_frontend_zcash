@@ -2,6 +2,8 @@
 #define __STRATUM_H_
 
 #include "p2putils/xmstream.h"
+#include <string>
+#include <vector>
 
 enum StratumMethodTy {
   Subscribe = 0,

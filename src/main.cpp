@@ -1,4 +1,5 @@
 #include "zcashpool.h"
+#include "address.h"
 #include "stratum.h"
 #include "poolcore/backend.h"
 #include "poolcommon/poolapi.h"
@@ -525,6 +526,12 @@ void *sigintProc(void *arg)
   exit(0);
 }
 
+static bool checkZECAddress(const char *address)
+{
+  CZECAddress A(address);
+  return A.isValid();
+}
+
 int main(int argc, char **argv)
 {
   if (argc != 2) {
@@ -602,7 +609,7 @@ int main(int argc, char **argv)
     backendConfig.balanceCheckInterval = cfg->lookupInt("pool_frontend_zcash", "balanceCheckInterval", 3) * 60 * 1000000;
     backendConfig.statisticCheckInterval = cfg->lookupInt("pool_frontend_zcash", "statisticCheckInterval", 1) * 60 * 1000000;
     
-    backendConfig.checkAddress = checkAddress;
+    backendConfig.checkAddressProc = checkAddress ? checkZECAddress : 0;
     backendConfig.useAsyncPayout = true;
     backendConfig.poolZAddr = cfg->lookupString("pool_frontend_zcash", "pool_zaddr");
     backendConfig.poolTAddr = cfg->lookupString("pool_frontend_zcash", "pool_taddr");
