@@ -27,7 +27,6 @@ include_directories(
 add_executable(pool_frontend_zcash
   main.cpp
   zcashpool.cpp
-  zmtp.cpp
   equihash_original.cpp
   stratum.cpp
   ${ProtoSources}
@@ -37,6 +36,7 @@ target_link_libraries(pool_frontend_zcash
   ${POOLCOMMON_LIBRARY}
   ${POOLCORE_LIBRARY}
   ${AIO_LIBRARY}
+  ${AIO_EXTRAS_LIBRARY}
   ${P2P_LIBRARY}
   ${P2PUTILS_LIBRARY}
   gmp

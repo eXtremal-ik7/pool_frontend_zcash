@@ -3,9 +3,11 @@
 #include <vector>
 #include <gmpxx.h>
 #include "uint256.h"
+#include "asyncio/asyncioTypes.h"
 
 struct asyncBase;
 struct aioObject;
+struct zmtpSocket;
 class p2pNode;
 class PoolBackend;
 
@@ -74,8 +76,8 @@ struct poolContext {
   aioObject *mainSocket;
   
   std::string xpmclientHost;
-  unsigned xpmclientListenPort;
-  unsigned xpmclientWorkPort; 
+  uint16_t xpmclientListenPort;
+  uint16_t xpmclientWorkPort;
   PoolBackend *backend;
   p2pNode *client;
 
@@ -100,12 +102,12 @@ struct poolContext {
   unsigned stratumWorkLifeTime;
   
   // must be in thread context
-  std::vector<aioObject*> signalSockets;
+  std::vector<zmtpSocket*> signalSockets;
   std::map<int64_t, StratumWorker> stratumWorkers;
 };
 
 struct readerContext {
-  aioObject *socket;
+  socketTy socket;
   poolContext *poolCtx;
   unsigned shareCounter;
 };

@@ -409,7 +409,7 @@ void onStratumSubscribe(poolContext *context, aioObject *socket, StratumMessage 
            "{\"id\": %i, \"result\": [\"%s\", \"00000000\"], \"error\": null}\n",
            (int)msg->id,
            sessionBuffer);
-  aioWrite(context->base, socket, response, strlen(response), afWaitAll, 0, 0, 0);
+  aioWrite(socket, response, strlen(response), afWaitAll, 0, 0, 0);
 }
 
 void onStratumAuthorize(poolContext *context, aioObject *socket, StratumMessage *msg, int64_t sessionId)
@@ -439,7 +439,7 @@ void onStratumAuthorize(poolContext *context, aioObject *socket, StratumMessage 
            (int)msg->id,
            authorized,
            error);
-  aioWrite(context->base, socket, response, strlen(response), afWaitAll, 0, 0, 0);
+  aioWrite(socket, response, strlen(response), afWaitAll, 0, 0, 0);
   
   // add worker record
   StratumWorker worker;
@@ -488,7 +488,7 @@ void onStratumSubmit(poolContext *context, aioObject *socket, StratumMessage *ms
            (value>0 ? "true" : "false"),
            error);
 
-  aioWrite(context->base, socket, response, strlen(response), afWaitAll, 0, 0, 0);
+  aioWrite(socket, response, strlen(response), afWaitAll, 0, 0, 0);
   if (value > 0) {
     context->stratumWorkers[sessionId].pushShare();
   } else {
@@ -505,7 +505,7 @@ void stratumSendSetTarget(poolContext *context, aioObject *socket)
            "{\"id\": null, \"method\": \"mining.set_target\", \"params\": [\"%s\"]}\n",
            context->shareTargetForStratum.c_str());  
   
-  aioWrite(context->base, socket, message, strlen(message), afWaitAll, 0, 0, 0);
+  aioWrite(socket, message, strlen(message), afWaitAll, 0, 0, 0);
 }
 
 bool stratumSendNewWork(poolContext *context, aioObject *socket, int64_t sessionId)
@@ -541,7 +541,7 @@ bool stratumSendNewWork(poolContext *context, aioObject *socket, int64_t session
            timeInHex,              // TIME
            bitsInHex);             // BITS
 
-  aioWrite(context->base, socket, message, strlen(message), afWaitAll, 0, 0, 0);
+  aioWrite(socket, message, strlen(message), afWaitAll, 0, 0, 0);
   
   StratumTask task;
   task.merkle = block->merkle;

@@ -4,17 +4,20 @@
 #include "poolcore/backend.h"
 #include "poolcommon/poolapi.h"
 
-#include "p2p/p2p.h"
 #include "asyncio/coroutine.h"
+#include "asyncio/socket.h"
+#include "asyncioextras/zmtp.h"
+#include "p2p/p2p.h"
+#include "p2putils/coreTypes.h"
 #include "p2putils/uriParse.h"
 
+__NO_DEPRECATED_BEGIN
 #include "config4cpp/Configuration.h"
+__NO_DEPRECATED_END
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "zmtp.h"
-#include "zmtpProto.h"
-#include "p2putils/coreTypes.h"
 #include <signal.h>
 #include "uint256.h"
 
@@ -78,64 +81,54 @@ static mpz_class hashTargetFromBits(unsigned nBits)
 static void sigIntHandler(int c)
 {
   int msg = 0;
-  aioWrite(gPoolContext->base, gPoolContext->signalWriteObject, &msg, sizeof(msg), afNone, 0, 0, 0);
+  aioWrite(gPoolContext->signalWriteObject, &msg, sizeof(msg), afNone, 0, nullptr, nullptr);
 }
 
-void sendSignalCb(AsyncOpStatus status, asyncBase *base, aioObject *object, size_t transferred, void *arg)
+void sendSignalCb(AsyncOpStatus status, zmtpSocket *socket, void *arg)
 {
   poolContext *ctx = (poolContext*)arg;
   if (status == aosDisconnected) {
-    for (std::vector<aioObject*>::iterator I = ctx->signalSockets.begin(), IE = ctx->signalSockets.end(); I != IE; ++I) {
-      if (*I == object) {
+    for (auto I = ctx->signalSockets.begin(), IE = ctx->signalSockets.end(); I != IE; ++I) {
+      if (*I == socket) {
         ctx->signalSockets.erase(I);
         break;
       }
     }
     
-    deleteAioObject(object);
+    zmtpSocketDelete(socket);
   }
 }
 
 void sendSignal(poolContext *ctx, const void *data, size_t size)
 {
   for (size_t i = 0; i < ctx->signalSockets.size(); i++) {
-    aioZmtpSendMessage(ctx->base, ctx->signalSockets[i], TM, (void*)data, size, false, sendSignalCb, ctx);
+    aioZmtpSend(ctx->signalSockets[i], (void*)data, size, zmtpMessage, afNone, TM, sendSignalCb, ctx);
   }
 }
 
-void *updateStratumWorkers(void *arg)
+void updateStratumWorkers(void *arg)
 {
   poolContext *ctx = (poolContext*)arg;  
   for (auto &w: ctx->stratumWorkers)
     stratumSendNewWork(ctx, w.second.socket, w.first);
 }
 
-void *frontendProc(void *arg)
+void frontendProc(void *arg)
 {
   readerContext *rctx = (readerContext*)arg;
-  aioObject *socket = rctx->socket;
   poolContext *poolCtx = rctx->poolCtx;
-  
-  bool success = true;
-  zmtpStream stream;
-  RawData socketType;
-  RawData identity;
-  success &= ioZmtpAccept(poolCtx->base, socket, TM);  
-  success &= zmtpIsCommand(ioZmtpRecv(poolCtx->base, socket, TM, &stream, 65536));
-  success &= stream.readReadyCmd(&socketType, &identity);
-  if (!success)
-    return 0;
-  
-  stream.reset();
-  stream.writeReadyCmd("DEALER", "");  
-  ioZmtpSendCommand(poolCtx->base, socket, TM, stream.data<void>(), stream.offsetOf());
+  zmtpSocket *socket = zmtpSocketNew(poolCtx->base, newSocketIo(poolCtx->base, rctx->socket), zmtpSocketDEALER);
+
+  if (ioZmtpAccept(socket, afNone, TM) < 0) {
+    zmtpSocketDelete(socket);
+    return;
+  }
 
   pool::proto::Request req;
   pool::proto::Reply rep;  
-
-  
-  
-  while (zmtpIsMessage(ioZmtpRecv(poolCtx->base, socket, 0, &stream, 65536))) {
+  zmtpStream stream;
+  zmtpUserMsgTy msgType;
+  while ((ioZmtpRecv(socket, stream, 65536, afNone, 0, &msgType) > 0) && msgType == zmtpMessage) {
     if (checkRequest(poolCtx, req, rep, stream.data<uint8_t>(), stream.remaining())) {
       pool::proto::Request::Type requestType = req.type();
       
@@ -148,39 +141,33 @@ void *frontendProc(void *arg)
       size_t repSize = rep.ByteSize();
       stream.reset();
       rep.SerializeToArray(stream.alloc<void>(repSize), repSize);
-      ioZmtpSendMessage(poolCtx->base, socket, TM, stream.data(), stream.sizeOf(), false);      
+      ioZmtpSend(socket, stream.data(), stream.sizeOf(), zmtpMessage, afNone, TM);
     } else {
       break;
     }
   } 
   
-  deleteAioObject(socket);  
+  zmtpSocketDelete(socket);
 }
 
-void *mainProc(void *arg)
+void mainProc(void *arg)
 {
   readerContext *rctx = (readerContext*)arg;
-  aioObject *socket = rctx->socket;
   poolContext *poolCtx = rctx->poolCtx;
-  
-  bool success = true;
-  zmtpStream stream;
-  RawData socketType;
-  RawData identity;
-  success &= ioZmtpAccept(poolCtx->base, socket, TM);  
-  success &= zmtpIsCommand(ioZmtpRecv(poolCtx->base, socket, TM, &stream, 65536));
-  success &= stream.readReadyCmd(&socketType, &identity);
-  if (!success)
-    return 0;
-  
-  stream.reset();
-  stream.writeReadyCmd("ROUTER", "");  
-  ioZmtpSendCommand(poolCtx->base, socket, TM, stream.data<void>(), stream.offsetOf());
+  zmtpSocket *socket = zmtpSocketNew(poolCtx->base, newSocketIo(poolCtx->base, rctx->socket), zmtpSocketROUTER);
 
+
+
+  if (ioZmtpAccept(socket, afNone, TM) < 0) {
+    zmtpSocketDelete(socket);
+    return;
+  }
+
+  zmtpStream stream;
   pool::proto::Request req;
   pool::proto::Reply rep;  
-  
-  while (zmtpIsMessage(ioZmtpRecv(poolCtx->base, socket, 0, &stream, 65536))) {
+  zmtpUserMsgTy msgType;
+  while ((ioZmtpRecv(socket, stream, 65536, afNone, 0, &msgType) > 0) && msgType == zmtpMessage) {
     if (checkRequest(poolCtx, req, rep, stream.data<uint8_t>(), stream.remaining())) {
       pool::proto::Request::Type requestType = req.type();
      
@@ -199,8 +186,8 @@ void *mainProc(void *arg)
       
       size_t repSize = rep.ByteSize();
       stream.reset();
-      rep.SerializeToArray(stream.alloc<void>(repSize), repSize);
-      ioZmtpSendMessage(poolCtx->base, socket, TM, stream.data(), stream.sizeOf(), false);     
+      rep.SerializeToArray(stream.alloc<void>(repSize), repSize);  
+      ioZmtpSend(socket, stream.data(), stream.sizeOf(), zmtpMessage, afNone, TM);
       if (needDisconnect)
         break;
     } else {
@@ -208,14 +195,14 @@ void *mainProc(void *arg)
     }
   }
   
-  deleteAioObject(socket);
+  zmtpSocketDelete(socket);
 }
 
-void *stratumProc(void *arg)
+void stratumProc(void *arg)
 {
   readerContext *rctx = (readerContext*)arg;
-  aioObject *socket = rctx->socket;
   poolContext *poolCtx = rctx->poolCtx;
+  aioObject *socket = newSocketIo(poolCtx->base, rctx->socket);
   
   int64_t sessionId = poolCtx->sessionId++;
   
@@ -224,8 +211,7 @@ void *stratumProc(void *arg)
   ssize_t bytesRead;
   ssize_t offset = 0;
   char *buffer = (char*)malloc(40960);
-  while ( sessionActive &
-          (bytesRead = ioRead(poolCtx->base, socket, buffer+offset, 40960 - offset - 1, afNone, 0)) != -1) {
+  while ( sessionActive && (bytesRead = ioRead(socket, buffer+offset, 40960 - offset - 1, afNone, 0)) != -1) {
     offset += bytesRead;
     buffer[offset] = 0;
     char *p = strchr(buffer, '\n');
@@ -286,33 +272,26 @@ void *stratumProc(void *arg)
 }
 
 
-void *signalsProc(void *arg)
+void signalsProc(void *arg)
 {
   readerContext *rctx = (readerContext*)arg;
-  aioObject *socket = rctx->socket;
   poolContext *ctx = (poolContext*)rctx->poolCtx;
-  
-  bool success = true;
+  zmtpSocket *socket = zmtpSocketNew(ctx->base, newSocketIo(ctx->base, rctx->socket), zmtpSocketPUB);
+
   zmtpStream stream;
-  RawData socketType;
-  RawData identity;
-  success &= ioZmtpAccept(ctx->base, socket, TM);  
-  success &= zmtpIsCommand(ioZmtpRecv(ctx->base, socket, TM, &stream, 65536));
-  success &= stream.readReadyCmd(&socketType, &identity);
-  if (!success)
-    return 0;
+  if (ioZmtpAccept(socket, afNone, TM) < 0) {
+    zmtpSocketDelete(socket);
+    return;
+  }
   
-  stream.reset();
-  stream.writeReadyCmd("PUB", "");  
-  if (ioZmtpSendCommand(ctx->base, socket, TM, stream.data<void>(), stream.offsetOf()))
-    ctx->signalSockets.push_back(socket);
+  ctx->signalSockets.push_back(socket);
 }
 
-void *timerProc(void *arg)
+void timerProc(void *arg)
 {
   poolContext *ctx = (poolContext*)arg;  
   
-  aioObject *timerEvent = newUserEvent(ctx->base, 0, 0);
+  aioUserEvent *timerEvent = newUserEvent(ctx->base, nullptr, nullptr);
   bool connectedBefore = ctx->client->connected();
   xmstream stream;
   while (true) {
@@ -380,10 +359,10 @@ void *timerProc(void *arg)
 }
 
 
-void *stratumStatsProc(void *arg)
+void stratumStatsProc(void *arg)
 {
   poolContext *ctx = (poolContext*)arg;  
-  aioObject *timerEvent = newUserEvent(ctx->base, 0, 0);
+  aioUserEvent *timerEvent = newUserEvent(ctx->base, nullptr, nullptr);
   while (true) {
     ioSleep(timerEvent, 60*1000000);
 
@@ -393,19 +372,16 @@ void *stratumStatsProc(void *arg)
 }
 
 
-void *listener(void *arg)
+void listener(void *arg)
 {
   listenerContext *ctx = (listenerContext*)arg;
   while (true) {
     HostAddress address;
-    socketTy acceptSocket = ioAccept(ctx->base, ctx->socket, 0);
+    socketTy acceptSocket = ioAccept(ctx->socket, 0);
     if (acceptSocket != INVALID_SOCKET) {
-      aioObject *newSocketOp = newSocketIo(ctx->base, acceptSocket);
-
       readerContext *rctx = new readerContext;
-      rctx->socket = newSocketOp;
+      rctx->socket = acceptSocket;
       rctx->poolCtx = (poolContext*)ctx->arg;
-      
       coroutineTy *proc = coroutineNew(ctx->proc, rctx, 0x40000);
       coroutineCall(proc);      
     }
@@ -413,7 +389,7 @@ void *listener(void *arg)
 }
 
 
-aioObject *createListener(asyncBase *base, int port, coroutineProcTy proc, aioObject **socketPtr, void *arg)
+aioObject *createListener(asyncBase *base, uint16_t port, coroutineProcTy proc, aioObject **socketPtr, void *arg)
 {
   HostAddress address;
   address.family = AF_INET;
@@ -496,11 +472,11 @@ void signalHandler(p2pPeer *peer, void *buffer, size_t size, void *arg)
   }
 }
 
-void *sigintProc(void *arg)
+void sigintProc(void *arg)
 {
   int msg;
   poolContext *context = (poolContext*)arg;  
-  ioRead(context->base, context->signalReadObject, &msg, sizeof(msg), afWaitAll, 0);
+  ioRead(context->signalReadObject, &msg, sizeof(msg), afWaitAll, 0);
   
   deleteAioObject(context->mainSocket);
   
@@ -515,7 +491,7 @@ void *sigintProc(void *arg)
   
   context->backend->stop();
   
-  aioObject *timerEvent = newUserEvent(context->base, 0, 0);
+  aioUserEvent *timerEvent = newUserEvent(context->base, nullptr, nullptr);
   printf("\n");
   for (unsigned i = 0; i < 3; i++) {
     printf(".");
@@ -542,7 +518,7 @@ int main(int argc, char **argv)
   PoolBackend::config backendConfig;
   poolContext context;
   bool checkAddress;
-  unsigned stratumPort;
+  uint16_t stratumPort;
   config4cpp::Configuration *cfg = config4cpp::Configuration::create();
   
   try {
@@ -647,13 +623,13 @@ int main(int argc, char **argv)
   
   // ZMQ protocol
   createListener(base, context.xpmclientListenPort, frontendProc, &context.mainSocket, &context);
-  createListener(base, context.xpmclientWorkPort, mainProc, 0, &context);  
-  createListener(base, context.xpmclientWorkPort+1, signalsProc, 0, &context);    
+  createListener(base, context.xpmclientWorkPort, mainProc, nullptr, &context);
+  createListener(base, context.xpmclientWorkPort+1, signalsProc, nullptr, &context);
   
   // Stratum protocol
   context.checkAddress = checkAddress;
   context.sessionId = 0;
-  createListener(base, stratumPort, stratumProc, 0, &context);
+  createListener(base, stratumPort, stratumProc, nullptr, &context);
   coroutineCall(coroutineNew(stratumStatsProc, &context, 0x10000));     
   
   context.client =
