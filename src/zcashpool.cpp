@@ -100,7 +100,7 @@ void onGetWork(poolContext *context, pool::proto::Request &req, pool::proto::Rep
   pool::proto::Work* work = rep.mutable_work();
   work->set_height(context->mCurrBlock.height());
   work->set_merkle(block->merkle.c_str());
-  work->set_time(std::max(time(0), block->time));
+  work->set_time(std::max(static_cast<int64_t>(time(0)), block->time));
   work->set_bits(block->bits);  
   work->set_hashreserved(block->hashreserved.c_str());
   work->set_k(block->equilHashK);
@@ -528,7 +528,7 @@ bool stratumSendNewWork(poolContext *context, aioObject *socket, int64_t session
   stratumLittleEndianHex(context->mCurrBlock.hash().c_str(), context->mCurrBlock.hash().size(), prevHash);
   stratumLittleEndianHex(block->merkle.c_str(), block->merkle.size(), merkleroot);
   stratumLittleEndianHex(block->hashreserved.c_str(), block->hashreserved.size(), reserved);    
-  stratumDumpHex((uint32_t)std::max(time(0), block->time), timeInHex);
+  stratumDumpHex(static_cast<uint32_t>(std::max(static_cast<int64_t>(time(0)), block->time)), timeInHex);
   stratumDumpHex((uint32_t)block->bits, bitsInHex);
     
   snprintf(message, sizeof(message),

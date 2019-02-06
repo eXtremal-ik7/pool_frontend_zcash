@@ -287,6 +287,12 @@ void signalsProc(void *arg)
   ctx->signalSockets.push_back(socket);
 }
 
+template<typename Ty>
+void mpz_class_set(mpz_class &rop, Ty op)
+{
+  mpz_import(rop.get_mpz_t(), 1, 1, sizeof(op), 0, 0, &op);
+}
+
 void timerProc(void *arg)
 {
   poolContext *ctx = (poolContext*)arg;  
@@ -312,7 +318,8 @@ void timerProc(void *arg)
         ctx->uniqueShares.clear();      
         ctx->stratumTaskMap.clear();
         
-        mpz_class blockTarget = receivedBlock->bits & 0x007FFFFF;
+        mpz_class blockTarget;
+        mpz_class_set(blockTarget, receivedBlock->bits & 0x007FFFFF);
         unsigned exponent = receivedBlock->bits >> 24;
         if (exponent <= 3)
           blockTarget >>= 8*(3-exponent);
@@ -440,7 +447,8 @@ void signalHandler(p2pPeer *peer, void *buffer, size_t size, void *arg)
       context->uniqueShares.clear();
       context->stratumTaskMap.clear();
       
-      mpz_class blockTarget = receivedBlock->bits() & 0x007FFFFF;
+      mpz_class blockTarget;
+      mpz_class_set(blockTarget, receivedBlock->bits() & 0x007FFFFF);
       unsigned exponent = receivedBlock->bits() >> 24;
       if (exponent <= 3)
         blockTarget >>= 8*(3-exponent);

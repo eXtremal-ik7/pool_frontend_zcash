@@ -21,7 +21,7 @@
 
 
 
-#ifdef _WIN32
+#if defined(_WIN32)
 #include <windows.h>
 #  define htobe32(x) __builtin_bswap32 (x)
 #  define htole32(x) (x)
@@ -30,6 +30,11 @@
 
 extern "C"
 void sodium_memzero(void *ptr, size_t cnt) { memset(ptr, 0, cnt); }
+#elif defined(__APPLE__)
+#  define htobe32(x) __builtin_bswap32 (x)
+#  define htole32(x) (x)
+#  define be32toh(x) __builtin_bswap32 (x)
+#  define le32toh(x) (x)
 #endif
 
 EhSolverCancelledException solver_cancelled;
