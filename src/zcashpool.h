@@ -4,6 +4,7 @@
 #include <gmpxx.h>
 #include "uint256.h"
 #include "asyncio/asyncioTypes.h"
+#include "asyncio/device.h"
 
 struct asyncBase;
 struct aioObject;
@@ -65,12 +66,13 @@ public:
 
 struct StratumTask {
   unsigned bits;
+  std::string hashReserved;
   std::string merkle;
 };
 
 struct poolContext {
   asyncBase *base;
-  int signalPipeFd[2];
+  pipeTy signalPipeFd;
   aioObject *signalWriteObject;
   aioObject *signalReadObject;  
   aioObject *mainSocket;

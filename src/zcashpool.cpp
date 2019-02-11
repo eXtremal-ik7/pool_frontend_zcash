@@ -332,9 +332,9 @@ int64_t stratumCheckShare(poolContext *context,
   header.data.nVersion = CBlockHeader::CURRENT_VERSION;
   header.data.hashPrevBlock.SetHex(context->mCurrBlock.hash());
   header.data.hashMerkleRoot.SetHex(task.merkle);
-  header.data.hashReserved = 0;
+  header.data.hashReserved.SetHex(task.hashReserved);
   header.data.nTime = msg->submit.time;
-  header.data.nBits = task.bits;    
+  header.data.nBits = task.bits;
 
   // hi 32 bits always 0
   memset(header.nNonce.begin(), 0, 4);
@@ -504,7 +504,7 @@ void stratumSendSetTarget(poolContext *context, aioObject *socket)
   snprintf(message, sizeof(message),
            "{\"id\": null, \"method\": \"mining.set_target\", \"params\": [\"%s\"]}\n",
            context->shareTargetForStratum.c_str());  
-  
+
   aioWrite(socket, message, strlen(message), afWaitAll, 0, 0, 0);
 }
 
@@ -546,6 +546,7 @@ bool stratumSendNewWork(poolContext *context, aioObject *socket, int64_t session
   StratumTask task;
   task.merkle = block->merkle;
   task.bits = block->bits;
+  task.hashReserved = block->hashreserved;
   context->stratumTaskMap[block->extraNonce] = task;
   context->stratumWorkers[sessionId].lastUpdateTime = time(0);
   return true;
