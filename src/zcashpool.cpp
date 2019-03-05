@@ -2,6 +2,7 @@
 #include "address.h"
 #include "poolcommon/poolapi.h"
 #include "poolcore/backend.h"
+#include "loguru.hpp"
 #include "p2p/p2p.h"
 #include "equihash_original.h"
 #include <openssl/sha.h>
@@ -46,7 +47,7 @@ bool checkRequest(poolContext *context,
                   size_t msgSize)
 {
   if (!req.ParseFromArray(msg, msgSize)) {
-    fprintf(stderr, "invalid message received\n");
+    LOG_F(WARNING, "invalid message received");
     return false;
   }
 
@@ -117,7 +118,7 @@ void onShare(poolContext *context, pool::proto::Request &req, pool::proto::Reply
   
   // share existing
   if (!req.has_share() || !req.share().has_bignonce() || !req.share().has_proofofwork()) {
-    fprintf(stderr, "ERROR: !req.has_share().\n");
+    LOG_F(WARNING, "!req.has_share()");
     rep.set_error(pool::proto::Reply::INVALID);
     return;
   }
@@ -133,7 +134,7 @@ void onShare(poolContext *context, pool::proto::Request &req, pool::proto::Reply
   auto nonceIt = context->extraNonceMap.find(share.merkle());
   if (nonceIt == context->extraNonceMap.end()) {
     *needDisconnect = true;
-    fprintf(stderr, "ERROR: share for unknown work\n");    
+    LOG_F(WARNING, "share for unknown work");
     rep.set_error(pool::proto::Reply::STALE);
     return;
   }
@@ -174,7 +175,7 @@ void onShare(poolContext *context, pool::proto::Request &req, pool::proto::Reply
     uint256 receivedHash;
     receivedHash.SetHex(share.hash());
     if (receivedHash != shareHeaderHash) {
-      fprintf(stderr, "<info> invalid share(sha256), no penalty\n");
+      LOG_F(WARNING, "invalid share(sha256), no penalty");
       rep.set_error(pool::proto::Reply::INVALID);
       return;
     }
@@ -182,14 +183,14 @@ void onShare(poolContext *context, pool::proto::Request &req, pool::proto::Reply
     // warning: need a huge CPU power for share check
     if (context->equihashShareCheck) {
       if (!equiHashShareCheck(&header, (const uint8_t*)share.proofofwork().data(), share.proofofwork().size())) {
-        fprintf(stderr, "<info> invalid share(equi), do a penalty\n");      
+        LOG_F(WARNING, "invalid share(equi), do a penalty");
         rep.set_error(pool::proto::Reply::INVALID);
       }
     }    
   }
 
   if (shareHeaderHash > context->shareTarget) {
-    fprintf(stderr, "<info> too small share\n");
+    LOG_F(WARNING, "too small share");
     rep.set_error(pool::proto::Reply::INVALID);
     return;
   }
@@ -199,7 +200,7 @@ void onShare(poolContext *context, pool::proto::Request &req, pool::proto::Reply
 
   // check duplicate
   if (!context->uniqueShares.insert(shareHeaderHash).second) {
-    fprintf(stderr, "<info> duplicate share\n");
+    LOG_F(WARNING, "duplicate share");
     rep.set_error(pool::proto::Reply::DUPLICATE);
     return;
   }
@@ -207,7 +208,7 @@ void onShare(poolContext *context, pool::proto::Request &req, pool::proto::Reply
   if (value) {
     int64_t generatedCoins = 0;
     if (share.isblock()) {
-      fprintf(stderr, "<info> found block %s\n", shareHeaderHash.ToString().c_str());
+      LOG_F(INFO, "found block %s", shareHeaderHash.ToString().c_str());
       auto result = ioSendProofOfWork(context->client,
                                       context->mCurrBlock.height(),
                                       share.time(),
@@ -222,7 +223,7 @@ void onShare(poolContext *context, pool::proto::Request &req, pool::proto::Reply
       if (result->result == true) {
         generatedCoins = result->generatedCoins;
       } else {
-        fprintf(stderr, "ERROR: proofOfWork check failed\n");
+        LOG_F(ERROR, "proofOfWork check failed");
         rep.set_error(pool::proto::Reply::INVALID);
         return;
       }      
@@ -240,14 +241,14 @@ void onShare(poolContext *context, pool::proto::Request &req, pool::proto::Reply
                                      generatedCoins);
       fbb.Finish(CreateP2PMessage(fbb, FunctionId_Share, Data_Share, shareOffset.Union()));
       if (!context->backend->sendMessage(context->base, fbb.GetBufferPointer(), fbb.GetSize())) {
-        fprintf(stderr, "ERROR: can't send share to backend");
+        LOG_F(ERROR, "can't send share to backend");
         rep.set_error(pool::proto::Reply::STALE);
         return;
       }
     }
     
   } else {
-    fprintf(stderr, "ERROR: invalid share\n");
+    LOG_F(WARNING, "invalid share");
     rep.set_error(pool::proto::Reply::INVALID);
     return;
   }
@@ -256,7 +257,7 @@ void onShare(poolContext *context, pool::proto::Request &req, pool::proto::Reply
 void onStats(poolContext *context, pool::proto::Request &req, pool::proto::Reply &rep)
 {
   if (!req.has_stats()) {
-    fprintf(stderr, "<error> !req.has_stats().\n");
+    LOG_F(WARNING, "!req.has_stats()");
     return;
   }  
   
@@ -273,7 +274,7 @@ void onStats(poolContext *context, pool::proto::Request &req, pool::proto::Reply
                                  stats.temp());
   fbb.Finish(CreateP2PMessage(fbb, FunctionId_Stats, Data_Stats, statsOffset.Union()));
   if (!context->backend->sendMessage(context->base, fbb.GetBufferPointer(), fbb.GetSize())) {
-    fprintf(stderr, "ERROR: can't send stats to backend");
+    LOG_F(ERROR, "can't send stats to backend");
     return;
   }
 }
@@ -379,7 +380,7 @@ int64_t stratumCheckShare(poolContext *context,
   }
 
   if (*shareHeaderHash <= context->blockTarget) {
-    fprintf(stderr, "<info> (stratum) found block %s\n", shareHeaderHash->ToString().c_str());
+    LOG_F(INFO, "(stratum) found block %s", shareHeaderHash->ToString().c_str());
     std::string proofofwork((const char*)equihashSolution, equihashSolutionSize);
     auto result = ioSendProofOfWork(context->client,
                                     context->mCurrBlock.height(),
@@ -469,11 +470,14 @@ void onStratumSubmit(poolContext *context, aioObject *socket, StratumMessage *ms
                                      generatedCoins > 0,
                                      fbb.CreateString(shareHeaderHash.ToString()),
                                      generatedCoins);
+
       fbb.Finish(CreateP2PMessage(fbb, FunctionId_Share, Data_Share, shareOffset.Union()));
       if (!context->backend->sendMessage(context->base, fbb.GetBufferPointer(), fbb.GetSize())) {
         value = -1;
         error = "\"Stale share\"";
       }
+    } else {
+      LOG_F(WARNING, "share check error: %s", error);
     }
   } else {
     value = -1;
@@ -569,7 +573,7 @@ void stratumSendStats(poolContext *context, StratumWorker &worker)
                                  0);
   fbb.Finish(CreateP2PMessage(fbb, FunctionId_Stats, Data_Stats, statsOffset.Union()));
   if (!context->backend->sendMessage(context->base, fbb.GetBufferPointer(), fbb.GetSize())) {
-    fprintf(stderr, "ERROR: can't send stats to backend");
+    LOG_F(ERROR, "can't send stats to backend");
     return;
   }
 }

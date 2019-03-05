@@ -1,6 +1,20 @@
 cmake_minimum_required(VERSION 3.0)
 project(pool_frontend_zcash)
 
+set (CMAKE_CXX_STANDARD 11)
+option(SANITIZER_ENABLED "Build with address sanitizer" OFF)
+option(GPROF_ENABLED "Build with GNU profiler (use gprof ./exename -p > out.txt)" OFF)
+
+if (SANITIZER_ENABLED)
+  set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=address")
+  set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address")
+endif()
+
+if (GPROF_ENABLED)
+  set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -pg")
+  set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pg")
+endif()
+
 set (CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH}
   ${CMAKE_CURRENT_SOURCE_DIR}/cmake
 )
@@ -30,8 +44,6 @@ find_library(JANSSON_LIBRARY jansson)
 find_path(SODIUM_INCLUDE_DIRECTORY sodium.h)
 find_library(SODIUM_LIBRARY sodium)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
-
 PROTOBUF_GENERATE_CPP(ProtoSources ProtoHeaders ${CMAKE_SOURCE_DIR}/protocol.proto)
 
 include_directories(
@@ -58,6 +70,7 @@ add_executable(pool_frontend_zcash
 target_link_libraries(pool_frontend_zcash
   ${POOLCOMMON_LIBRARY}
   ${POOLCORE_LIBRARY}
+  ${POOLCORE_LOGURU_LIBRARY}
   ${AIO_LIBRARY}
   ${AIO_EXTRAS_LIBRARY}
   ${P2P_LIBRARY}
@@ -79,4 +92,6 @@ target_link_libraries(pool_frontend_zcash
 
 if (WIN32)
   target_link_libraries(pool_frontend_zcash ws2_32 mswsock)
+else()
+  target_link_libraries(pool_frontend_zcash dl)
 endif()

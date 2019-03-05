@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <iostream>
 #include <stdexcept>
+#include "loguru.hpp"
 
 
 
@@ -284,7 +285,7 @@ template<unsigned int N, unsigned int K>
 bool Equihash<N,K>::IsValidSolution(const eh_HashState& base_state, std::vector<unsigned char> &soln)
 {
     if (soln.size() != SolutionWidth) {
-        printf("Invalid solution length: %d (expected %d)\n", (unsigned)soln.size(), (unsigned)SolutionWidth);
+        LOG_F(WARNING, "Invalid solution length: %d (expected %d)", (unsigned)soln.size(), (unsigned)SolutionWidth);
         return false;
     }
 

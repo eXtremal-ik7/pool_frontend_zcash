@@ -3,6 +3,7 @@
 #include "stratum.h"
 #include "poolcore/backend.h"
 #include "poolcommon/poolapi.h"
+#include "loguru.hpp"
 
 #include "asyncio/coroutine.h"
 #include "asyncio/socket.h"
@@ -155,8 +156,6 @@ void mainProc(void *arg)
   readerContext *rctx = (readerContext*)arg;
   poolContext *poolCtx = rctx->poolCtx;
   zmtpSocket *socket = zmtpSocketNew(poolCtx->base, newSocketIo(poolCtx->base, rctx->socket), zmtpSocketROUTER);
-
-
 
   if (ioZmtpAccept(socket, afNone, TM) < 0) {
     zmtpSocketDelete(socket);
@@ -328,11 +327,11 @@ void timerProc(void *arg)
         mpz_to_uint256(blockTarget.get_mpz_t(), ctx->blockTarget);
 
         mpz_class sharesPerBlock = ctx->shareTargetMpz / blockTarget;
-        fprintf(stderr,
-                " * new block: %u, diff=%.5lf, approximate shares per block: %lu\n",
-                (unsigned)receivedBlock->height,
-                ctx->difficulty,
-                std::max(sharesPerBlock.get_ui(), 1ul));
+        LOG_F(INFO,
+              " * new block: %u, diff=%.5lf, approximate shares per block: %lu",
+              (unsigned)receivedBlock->height,
+              ctx->difficulty,
+              std::max(sharesPerBlock.get_ui(), 1ul));
 
         pool::proto::Signal sig;
         pool::proto::Block* block = sig.mutable_block();
@@ -405,12 +404,12 @@ aioObject *createListener(asyncBase *base, uint16_t port, coroutineProcTy proc, 
   socketTy hSocket = socketCreate(AF_INET, SOCK_STREAM, IPPROTO_TCP, 1);
   socketReuseAddr(hSocket);
   if (socketBind(hSocket, &address) != 0) {
-    fprintf(stderr, "cannot bind port: %i\n", port);
+    LOG_F(ERROR, "cannot bind port: %i", port);
     exit(1);
   }
 
   if (socketListen(hSocket) != 0) {
-    fprintf(stderr, "listen error: %i\n", port);
+    LOG_F(ERROR, "listen error: %i", port);
     exit(1);
   }
 
@@ -458,11 +457,11 @@ void signalHandler(p2pPeer *peer, void *buffer, size_t size, void *arg)
 
       mpz_class sharesPerBlock = context->shareTargetMpz / blockTarget;
 
-      fprintf(stderr,
-              " * new block signal: %u, diff=%.5lf, approximate shares per block: %lu\n",
-              (unsigned)receivedBlock->height(),
-              context->difficulty,
-              std::max(sharesPerBlock.get_ui(), 1ul));
+      LOG_F(INFO,
+            " * new block signal: %u, diff=%.5lf, approximate shares per block: %lu",
+            (unsigned)receivedBlock->height(),
+            context->difficulty,
+            std::max(sharesPerBlock.get_ui(), 1ul));
 
       pool::proto::Signal sig;
       pool::proto::Block* block = sig.mutable_block();
@@ -506,7 +505,7 @@ void sigintProc(void *arg)
     fflush(stdout);
     ioSleep(timerEvent, 1000000);
   }
-
+  printf("\n");
   postQuitOperation(context->base);
 }
 
@@ -522,6 +521,21 @@ int main(int argc, char **argv)
     fprintf(stderr, "Usage: %s <configuration file>\n", argv[0]);
     return 1;
   }
+
+  char logFileName[64];
+  {
+    auto t = std::time(nullptr);
+    auto now = std::localtime(&t);
+    snprintf(logFileName, sizeof(logFileName), "pool_frontend_zcash-%04u-%02u-%02u.log", now->tm_year + 1900, now->tm_mon + 1, now->tm_mday);
+  }
+
+  loguru::g_stderr_verbosity = loguru::Verbosity_OFF;
+  loguru::g_preamble_thread = false;
+  loguru::g_preamble_file = false;
+  loguru::g_flush_interval_ms = 100;
+  loguru::init(argc, argv);
+  loguru::add_file(logFileName, loguru::Append, loguru::Verbosity_INFO);
+  loguru::g_stderr_verbosity = 1;
 
   PoolBackend::config backendConfig;
   poolContext context;
@@ -542,12 +556,12 @@ int main(int argc, char **argv)
     for (decltype(wallets.length()) i = 0; i < wallets.length(); i++) {
       URI uri;
       if (!uriParse(wallets[i], &uri)) {
-        fprintf(stderr, "<error> can't read walletaddrs from configuration file\n");
+        LOG_F(ERROR, "can't read walletaddrs from configuration file");
         return 1;
       }
 
       if (uri.schema != "p2p" || !uri.ipv4 || !uri.port) {
-        fprintf(stderr, "<error> walletaddrs can be contain only p2p://xxx.xxx.xxx.xxx:port address now\n");
+        LOG_F(ERROR, "walletaddrs can be contain only p2p://xxx.xxx.xxx.xxx:port address now");
         return 1;
       }
 
@@ -562,12 +576,12 @@ int main(int argc, char **argv)
       URI uri;
       const char *localAddress = cfg->lookupString("pool_frontend_zcash", "localAddress");
       if (!uriParse(localAddress, &uri)) {
-        fprintf(stderr, "<error> can't read localAddress from configuration file\n");
+        LOG_F(ERROR, "can't read localAddress from configuration file");
         return 1;
       }
 
       if (uri.schema != "p2p" || !uri.ipv4 || !uri.port) {
-        fprintf(stderr, "<error> localAddress can be contain only p2p://xxx.xxx.xxx.xxx:port address now\n");
+        LOG_F(ERROR, "localAddress can be contain only p2p://xxx.xxx.xxx.xxx:port address now");
         return 1;
       }
 
@@ -613,11 +627,11 @@ int main(int argc, char **argv)
     context.shareTargetBits = context.shareTarget.GetCompact(false);
     context.shareTargetMpz = N;
     context.shareTargetForStratum = context.shareTarget.ToString();
-    fprintf(stderr, "<info> share target for stratum is %s\n", context.shareTargetForStratum.c_str());
+    LOG_F(INFO, "share target for stratum is %s", context.shareTargetForStratum.c_str());
 
     context.equihashShareCheck = cfg->lookupBoolean("pool_frontend_zcash", "equihashShareCheck", true);
   } catch(const config4cpp::ConfigurationException& ex){
-    fprintf(stderr, "<error> %s\n", ex.c_str());
+    LOG_F(ERROR, "%s", ex.c_str());
     exit(1);
   }
 
@@ -665,6 +679,6 @@ int main(int argc, char **argv)
   }
 
   asyncLoop(base);
-  printf("pool_frondend_zcash stopped\n\n");
+  LOG_F(INFO, "pool_frondend_zcash stopped\n");
   return 0;
 }
