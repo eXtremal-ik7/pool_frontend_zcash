@@ -18,14 +18,14 @@ cd YOUR_BUILD_DIRECTORY
 git clone https://github.com/zcash/zcash
 git clone https://github.com/config4star/config4cpp
 git clone https://github.com/google/flatbuffers
-git clone https://github.com/eXtremal-ik7/libp2p -b version/0.3
+git clone https://github.com/eXtremal-ik7/libp2p -b version/0.4
 git clone https://github.com/eXtremal-ik7/poolcore
 git clone https://github.com/eXtremal-ik7/pool_frontend_zcash
 git clone https://github.com/eXtremal-ik7/poolrestapi
 git clone https://github.com/eXtremal-ik7/ngxrest
 git clone https://github.com/eXtremal-ik7/pooljs
-wget https://nginx.org/download/nginx-1.11.5.tar.gz
-tar -xzf nginx-1.11.5.tar.gz
+wget https://nginx.org/download/nginx-1.15.8.tar.gz
+tar -xzf nginx-1.15.8.tar.gz
 ```
 
 ###### Build pool sources
@@ -64,15 +64,15 @@ cd x86_64-Linux
 cmake ../src -DROOT_SOURCE_DIR=YOUR_BUILD_DIRECTORY
 make -j5
 
-cd YOUR_BUILD_DIRECTORY/nginx-1.11.5
+cd YOUR_BUILD_DIRECTORY/nginx-1.15.8
 ./configure --prefix=NGINX_INSTALL_DIRECTORY --add-module=YOUR_BUILD_DIRECTORY/ngxrest
 make -j5
 make install
 ```
 
-###### Setup ZCash daemon (version 1.1.2 or higher required)
+###### Setup ZCash daemon (version 2.0.3 or higher required)
 
-You can find setup instructions on ZCash github page: https://github.com/zcash/zcash/wiki/1.0-User-Guide
+You can find setup instructions on ZCash github page: https://zcash.readthedocs.io/en/latest/rtd_pages/user_guide.html
 
 After building by command ./zcutil/build.sh you must apply pool integration patch:
 
@@ -91,7 +91,7 @@ Add path to pool libraries in Makefile:
  LIBTOOL = $(SHELL) $(top_builddir)/libtool
  LIBTOOL_APP_LDFLAGS = 
 -LIBZCASH_LIBS = -lsnark -lgmp -lgmpxx -lboost_system-mt -lcrypto -lsodium -fopenmp
-+LIBZCASH_LIBS = -lsnark -lgmp -lgmpxx -lboost_system-mt -lcrypto -lsodium -fopenmp -LYOUR_BUILD_DIRECTORY/poolcore/x86_64-Linux/zcash -lpoolrpczcash -LYOUR_BUILD_DIRECTORY/libp2p/x86_64-Linux/p2p -lp2p -LYOUR_BUILD_DIRECTORY/libp2p/x86_64-Linux/asyncio -lasyncio-0.3 -lrt
++LIBZCASH_LIBS = -lsnark -lgmp -lgmpxx -lboost_system-mt -lcrypto -lsodium -fopenmp -LYOUR_BUILD_DIRECTORY/poolcore/x86_64-Linux/zcash -lpoolrpczcash -LYOUR_BUILD_DIRECTORY/libp2p/x86_64-Linux/p2p -lp2p -LYOUR_BUILD_DIRECTORY/libp2p/x86_64-Linux/asyncio -lasyncio-0.4 -lrt
  LIPO = 
  LN_S = ln -s
  LRELEASE = 
@@ -282,3 +282,4 @@ cd YOUR_BUILD_DIRECTORY/pooljs/coins-for-all/webapp
 cp -r * NGINX_INSTALL_DIRECTORY/html
 sudo NGINX_INSTALL_DIRECTORY/sbin/nginx (you need sudo because port 80 is used)
 ```
+
